@@ -12,10 +12,13 @@ import imageio
 
 from IPython import display
 
+# Convolutional Variational Autoencoder
+
 (train_images, _), (test_images, _) = tf.keras.datasets.mnist.load_data()
 
 train_images = train_images.reshape(train_images.shape[0], 28, 28, 1).astype('float32')
 test_images = test_images.reshape(test_images.shape[0], 28, 28, 1).astype('float32')
+
 
 # Normalizing the images to the range of [0., 1.]
 train_images /= 255.
@@ -31,11 +34,15 @@ TRAIN_BUF = 60000
 BATCH_SIZE = 100
 
 TEST_BUF = 10000
+epochs = 100
+latent_dim = 50
+num_examples_to_generate = 16
+
+optimizer = tf.keras.optimizers.Adam(1e-4)
 
 train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(TRAIN_BUF).batch(BATCH_SIZE)
 test_dataset = tf.data.Dataset.from_tensor_slices(test_images).shuffle(TEST_BUF).batch(BATCH_SIZE)
 
-print("hello")
 
 class CVAE(tf.keras.Model):
   def __init__(self, latent_dim):
@@ -98,7 +105,10 @@ class CVAE(tf.keras.Model):
       return probs
 
     return logits
-optimizer = tf.keras.optimizers.Adam(1e-4)
+
+
+
+
 
 def log_normal_pdf(sample, mean, logvar, raxis=1):
   log2pi = tf.math.log(2. * np.pi)
@@ -125,75 +135,82 @@ def compute_apply_gradients(model, x, optimizer):
   gradients = tape.gradient(loss, model.trainable_variables)
   optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-epochs = 100
-latent_dim = 50
-num_examples_to_generate = 16
-
-# keeping the random vector constant for generation (prediction) so
-# it will be easier to see the improvement.
-random_vector_for_generation = tf.random.normal(
-    shape=[num_examples_to_generate, latent_dim])
-model = CVAE(latent_dim)
-
-
 def generate_and_save_images(model, epoch, test_input):
   predictions = model.sample(test_input)
   fig = plt.figure(figsize=(4,4))
+  # print("test")
 
   for i in range(predictions.shape[0]):
       plt.subplot(4, 4, i+1)
       plt.imshow(predictions[i, :, :, 0], cmap='gray')
       plt.axis('off')
 
+
   # tight_layout minimizes the overlap between 2 sub-plots
   plt.savefig('image_at_epoch_{:04d}.png'.format(epoch))
-  plt.show()
-
-generate_and_save_images(model, 0, random_vector_for_generation)
-
-for epoch in range(1, epochs + 1):
-  start_time = time.time()
-  for train_x in train_dataset:
-    compute_apply_gradients(model, train_x, optimizer)
-  end_time = time.time()
-
-  if epoch % 1 == 0:
-    loss = tf.keras.metrics.Mean()
-    for test_x in test_dataset:
-      loss(compute_loss(model, test_x))
-    elbo = -loss.result()
-    display.clear_output(wait=False)
-    print('Epoch: {}, Test set ELBO: {}, '
-          'time elapse for current epoch {}'.format(epoch,
-                                                    elbo,
-                                                    end_time - start_time))
-    generate_and_save_images(
-        model, epoch, random_vector_for_generation)
+  plt.close(fig)
+  # plt.pause(0.001)
+  # plt.show(block = False)
 
 
 def display_image(epoch_no):
   return PIL.Image.open('image_at_epoch_{:04d}.png'.format(epoch_no))
 
-plt.imshow(display_image(epochs))
-plt.axis('off')# Display images
-
-anim_file = 'cvae.gif'
-
-with imageio.get_writer(anim_file, mode='I') as writer:
-  filenames = glob.glob('image*.png')
-  filenames = sorted(filenames)
-  last = -1
-  for i,filename in enumerate(filenames):
-    frame = 2*(i**0.5)
-    if round(frame) > round(last):
-      last = frame
-    else:
-      continue
-    image = imageio.imread(filename)
-    writer.append_data(image)
-  image = imageio.imread(filename)
-  writer.append_data(image)
-
 import IPython
-if IPython.version_info >= (6,2,0,''):
-  display.Image(filename=anim_file)
+
+def main():
+
+    # keeping the random vector constant for generation (prediction) so
+    # it will be easier to see the improvement.
+    random_vector_for_generation = tf.random.normal(
+        shape=[num_examples_to_generate, latent_dim])
+    model = CVAE(latent_dim)
+
+    generate_and_save_images(model, 0, random_vector_for_generation)
+
+    for epoch in range(1, epochs + 1):
+      start_time = time.time()
+      for train_x in train_dataset:
+        compute_apply_gradients(model, train_x, optimizer)
+      end_time = time.time()
+
+      if epoch % 1 == 0:
+        loss = tf.keras.metrics.Mean()
+        for test_x in test_dataset:
+          loss(compute_loss(model, test_x))
+        elbo = -loss.result()
+        display.clear_output(wait=False)
+        print('Epoch: {}, Test set ELBO: {}, '
+              'time elapse for current epoch {}'.format(epoch,
+                                                        elbo,
+                                                        end_time - start_time))
+        generate_and_save_images(
+            model, epoch, random_vector_for_generation)
+
+
+    plt.imshow(display_image(epochs))
+    plt.axis('off')# Display images
+
+    # useless
+    # anim_file = 'cvae.gif'
+    #
+    # with imageio.get_writer(anim_file, mode='I') as writer:
+    #   filenames = glob.glob('image*.png')
+    #   filenames = sorted(filenames)
+    #   last = -1
+    #   for i,filename in enumerate(filenames):
+    #     frame = 2*(i**0.5)
+    #     if round(frame) > round(last):
+    #       last = frame
+    #     else:
+    #       continue
+    #     image = imageio.imread(filename)
+    #     writer.append_data(image)
+    #   image = imageio.imread(filename)
+    #   writer.append_data(image)
+    # if IPython.version_info >= (6,2,0,''):
+    #   display.Image(filename=anim_file)
+
+
+if __name__ == '__main__':
+    main()
