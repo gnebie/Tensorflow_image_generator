@@ -48,13 +48,13 @@ class DCGAN():
 		# get the train images
 		train_images = get_train_images()
 
-		epoch_dir = "epoch"
+		self.img_dir = "epoch"
 
 		BUFFER_SIZE = 60000
 		self.BATCH_SIZE = 256
 
 		# create a directory for the images
-		os.makedirs(epoch_dir, exist_ok=True)
+		os.makedirs(self.img_dir, exist_ok=True)
 
 		# Batch and shuffle the data
 		train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(self.BATCH_SIZE)
@@ -123,7 +123,7 @@ class DCGAN():
 	    display.clear_output(wait=True)
 	    generate_and_save_images(self.generator,
 	                             epoch + 1,
-	                             self.seed)
+	                             self.seed, self.img_dir)
 
 	    # Save the model every 15 epochs
 	    if (epoch + 1) % 15 == 0:
@@ -135,7 +135,7 @@ class DCGAN():
 	  display.clear_output(wait=True)
 	  generate_and_save_images(self.generator,
 	                           epochs,
-	                           self.seed)
+	                           self.seed, self.img_dir)
 
 
 
@@ -196,7 +196,7 @@ def generator_loss(fake_output, cross_entropy):
 
 
 
-def generate_and_save_images(model, epoch, test_input):
+def generate_and_save_images(model, epoch, test_input, img_dir):
   # Notice `training` is set to False.
   # This is so all layers run in inference mode (batchnorm).
   predictions = model(test_input, training=False)
@@ -208,13 +208,13 @@ def generate_and_save_images(model, epoch, test_input):
       plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
       plt.axis('off')
 
-  plt.savefig(os.join(epoch_dir, 'image_at_epoch_{:04d}.png'.format(epoch)))
+  plt.savefig(os.path.join(img_dir, 'image_at_epoch_{:04d}.png'.format(epoch)))
   # plt.show()
 
 
 # Display a single image using the epoch number
 def display_image(epoch_no):
-  return PIL.Image.open(os.join(epoch_dir, 'image_at_epoch_{:04d}.png'.format(epoch_no)))
+  return PIL.Image.open(os.path.join(img_dir, 'image_at_epoch_{:04d}.png'.format(epoch_no)))
 
 
 def create_gif():
